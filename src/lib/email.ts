@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-const FROM = process.env.SMTP_FROM || "Mac Place <noah.elkaim@gmail.com>";
+const FROM = process.env.SMTP_FROM || "Mac Place <lucas.macbroker@gmail.com>";
 const COMPANY = process.env.NEXT_PUBLIC_COMPANY_NAME || "Mac Place";
 
 export async function sendTrackingEmail(

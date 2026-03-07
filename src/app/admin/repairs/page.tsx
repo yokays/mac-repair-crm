@@ -453,7 +453,7 @@ export default function RepairsPage() {
       )}
       {/* Modal de confirmation suppression */}
       {deleteId && (
-        <Modal title="Supprimer cette reparation ?" onClose={() => setDeleteId(null)}>
+        <Modal isOpen={!!deleteId} title="Supprimer cette reparation ?" onClose={() => setDeleteId(null)}>
           <p className="text-sm text-[#424245] mb-6">
             Cette action est irreversible. Toutes les donnees associees (notes, historique, pieces) seront supprimees.
           </p>

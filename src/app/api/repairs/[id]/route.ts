@@ -171,13 +171,6 @@ export async function DELETE(
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    if (!requireRole(user.role, "SUPER_ADMIN")) {
-      return NextResponse.json(
-        { error: "Accès refusé — rôle Super Admin requis" },
-        { status: 403 }
-      );
-    }
-
     const { id } = await params;
 
     const existing = await prisma.repair.findUnique({ where: { id } });
