@@ -105,6 +105,68 @@ export async function sendStatusUpdateEmail(
   }
 }
 
+export async function sendLinkNotificationEmail(
+  email: string,
+  clientName: string,
+  token: string,
+  macModel: string,
+  linkType: "tracking" | "payment",
+  linkUrl: string,
+) {
+  const trackingUrl = `${APP_URL}/suivi/${token}`;
+  const isTracking = linkType === "tracking";
+
+  const subject = isTracking
+    ? `${COMPANY} — Lien de suivi pour votre ${macModel}`
+    : `${COMPANY} — Lien de paiement pour votre ${macModel}`;
+
+  const icon = isTracking ? "📦" : "💳";
+  const title = isTracking ? "Votre lien de suivi est disponible" : "Lien de paiement disponible";
+  const description = isTracking
+    ? "Vous pouvez desormais suivre l'expedition de votre Mac en cliquant sur le bouton ci-dessous."
+    : "Vous pouvez proceder au paiement de votre reparation en cliquant sur le bouton ci-dessous.";
+  const buttonText = isTracking ? "Suivre mon colis" : "Payer maintenant";
+  const buttonColor = isTracking ? "#0071e3" : "#34C759";
+
+  try {
+    await transporter.sendMail({
+      from: FROM,
+      to: email,
+      subject,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+          <h1 style="color: #1d1d1f; font-size: 24px; font-weight: 600;">Bonjour ${clientName},</h1>
+          <div style="background: #f5f5f7; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+            <span style="font-size: 32px;">${icon}</span>
+            <p style="color: #1d1d1f; font-size: 18px; font-weight: 600; margin: 12px 0 0;">${title}</p>
+          </div>
+          <p style="color: #424245; font-size: 16px; line-height: 1.6;">
+            ${description}
+          </p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${linkUrl}" style="background-color: ${buttonColor}; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 500;">
+              ${buttonText}
+            </a>
+          </div>
+          <p style="color: #86868b; font-size: 14px; line-height: 1.5;">
+            Vous pouvez aussi consulter votre page de suivi :<br/>
+            <a href="${trackingUrl}" style="color: #0071e3;">${trackingUrl}</a>
+          </p>
+          <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;" />
+          <p style="color: #86868b; font-size: 13px;">
+            ${COMPANY}<br/>
+            ${process.env.NEXT_PUBLIC_COMPANY_ADDRESS || ""}
+          </p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (error) {
+    console.error("Failed to send link notification email:", error);
+    return false;
+  }
+}
+
 export async function sendNewRepairNotification(
   clientName: string,
   macModel: string,
