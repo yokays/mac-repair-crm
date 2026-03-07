@@ -142,6 +142,7 @@ model RepairAttachment {
   repair     Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
   fileName   String
   storedName String   @unique
+  url        String   @default("")
   mimeType   String
   size       Int
   type       String   // Devis, Facture, Photo, Autre

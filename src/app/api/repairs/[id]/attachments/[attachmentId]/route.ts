@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { readFile } from "fs/promises";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { getFilePath, deleteFile } from "@/lib/attachments";
+import { deleteFile } from "@/lib/attachments";
 
 export async function GET(
   request: Request,
@@ -19,17 +18,8 @@ export async function GET(
       return NextResponse.json({ error: "Fichier introuvable" }, { status: 404 });
     }
 
-    const filePath = getFilePath(attachment.storedName);
-    const fileBuffer = await readFile(filePath);
-
-    return new NextResponse(fileBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": attachment.mimeType,
-        "Content-Disposition": `inline; filename="${attachment.fileName}"`,
-        "Content-Length": String(attachment.size),
-      },
-    });
+    // Redirect to Vercel Blob URL
+    return NextResponse.redirect(attachment.url);
   } catch (error) {
     console.error("Serve attachment error:", error);
     return NextResponse.json(
@@ -59,7 +49,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Fichier introuvable" }, { status: 404 });
     }
 
-    await deleteFile(attachment.storedName);
+    if (attachment.url) {
+      await deleteFile(attachment.url);
+    }
     await prisma.repairAttachment.delete({ where: { id: attachmentId } });
 
     return NextResponse.json({ message: "Fichier supprime" });

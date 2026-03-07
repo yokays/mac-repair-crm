@@ -52,13 +52,14 @@ export async function POST(
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const storedName = await saveFile(buffer, file.type);
+    const { storedName, url } = await saveFile(buffer, file.type);
 
     const attachment = await prisma.repairAttachment.create({
       data: {
         repairId: id,
         fileName: file.name,
         storedName,
+        url,
         mimeType: file.type,
         size: file.size,
         type,
