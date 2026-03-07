@@ -41,10 +41,10 @@ export default function TrackingLayout({
             </div>
             <div className="flex items-center gap-4">
               <a
-                href="mailto:noah.elkaim@gmail.com"
+                href="mailto:lucas.macbroker@gmail.com"
                 className="hover:text-[#0071e3] transition-colors"
               >
-                noah.elkaim@gmail.com
+                lucas.macbroker@gmail.com
               </a>
               <span>&middot;</span>
               <a
