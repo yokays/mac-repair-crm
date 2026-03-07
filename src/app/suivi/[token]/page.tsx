@@ -467,9 +467,8 @@ export default function TrackingPage() {
         </div>
       </div>
 
-      {/* ── Shipping tracking (POSTAL + SHIPPED) ─────────────────── */}
+      {/* ── Shipping tracking ─────────────────────────────────────── */}
       {repair.repairType === "POSTAL" &&
-        repair.status === "SHIPPED" &&
         repair.outboundTracking && (
           <div className="mb-8 p-5 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-100 rounded-2xl">
             <div className="flex items-start gap-3">
@@ -521,6 +520,36 @@ export default function TrackingPage() {
             </div>
           </div>
         )}
+
+      {/* ── Tracking link (Chronopost) ─────────────────────────── */}
+      {repair.trackingLink && (
+        <div className="mb-8 p-5 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-100 rounded-2xl">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+              <span className="text-lg">📦</span>
+            </div>
+            <div>
+              <h3 className="font-semibold text-[#1d1d1f] mb-1">
+                Suivi de votre colis
+              </h3>
+              <p className="text-sm text-[#86868b] mb-3">
+                Suivez votre colis en temps reel en cliquant sur le lien ci-dessous.
+              </p>
+              <a
+                href={repair.trackingLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-[#0071e3] text-white text-sm font-medium rounded-full hover:bg-[#0077ed] transition-colors"
+              >
+                Suivre mon colis
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Payment link ─────────────────────────────────────────── */}
       {repair.paymentLink && (

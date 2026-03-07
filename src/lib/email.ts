@@ -105,6 +105,52 @@ export async function sendStatusUpdateEmail(
   }
 }
 
+export async function sendNewRepairNotification(
+  clientName: string,
+  macModel: string,
+  faultType: string,
+  repairType: string,
+  repairId: string,
+) {
+  const adminEmail = process.env.SMTP_ADMIN_EMAIL || process.env.SMTP_USER;
+  if (!adminEmail) return false;
+
+  const repairUrl = `${APP_URL}/admin/repairs/${repairId}`;
+
+  try {
+    await transporter.sendMail({
+      from: FROM,
+      to: adminEmail,
+      subject: `${COMPANY} — Nouveau ticket : ${clientName} (${macModel})`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+          <h1 style="color: #1d1d1f; font-size: 24px; font-weight: 600;">Nouveau ticket de reparation</h1>
+          <div style="background: #f5f5f7; border-radius: 12px; padding: 20px; margin: 24px 0;">
+            <p style="color: #424245; font-size: 15px; margin: 0 0 8px;"><strong>Client :</strong> ${clientName}</p>
+            <p style="color: #424245; font-size: 15px; margin: 0 0 8px;"><strong>Modele :</strong> ${macModel}</p>
+            <p style="color: #424245; font-size: 15px; margin: 0 0 8px;"><strong>Panne :</strong> ${faultType}</p>
+            <p style="color: #424245; font-size: 15px; margin: 0;"><strong>Type :</strong> ${repairType === "POSTAL" ? "Postal" : "Atelier"}</p>
+          </div>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${repairUrl}" style="background-color: #0071e3; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 500;">
+              Voir le ticket
+            </a>
+          </div>
+          <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;" />
+          <p style="color: #86868b; font-size: 13px;">
+            ${COMPANY}<br/>
+            ${process.env.NEXT_PUBLIC_COMPANY_ADDRESS || ""}
+          </p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (error) {
+    console.error("Failed to send new repair notification:", error);
+    return false;
+  }
+}
+
 export async function sendQuoteValidatedEmail(
   clientEmail: string,
   clientName: string,
