@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Pagination } from "@/components/ui/Pagination";
 import { PageLoader } from "@/components/ui/Loader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { FAULT_TYPES, POSTAL_STATUSES, LOCAL_STATUSES } from "@/lib/constants";
 
@@ -65,6 +66,8 @@ export default function RepairsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -139,6 +142,25 @@ export default function RepairsPage() {
       toast.success("Export CSV telecharge");
     } catch {
       toast.error("Erreur lors de l'export CSV");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/repairs/${deleteId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Erreur");
+      }
+      toast.success("Reparation supprimee");
+      setDeleteId(null);
+      fetchRepairs();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de la suppression");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -312,6 +334,14 @@ export default function RepairsPage() {
                     </span>
                   </div>
                 </Link>
+                <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                  <button
+                    onClick={() => setDeleteId(repair.id)}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium"
+                  >
+                    Supprimer
+                  </button>
+                </div>
               </Card>
             ))}
           </div>
@@ -389,13 +419,21 @@ export default function RepairsPage() {
                         {new Date(repair.createdAt).toLocaleDateString("fr-FR")}
                       </td>
                       <td className="px-4 py-3">
-                        <Link
-                          href={`/admin/repairs/${repair.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[#0071e3] hover:text-[#0077ed] text-sm font-medium"
-                        >
-                          Voir
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <Link
+                            href={`/admin/repairs/${repair.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[#0071e3] hover:text-[#0077ed] text-sm font-medium"
+                          >
+                            Voir
+                          </Link>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteId(repair.id); }}
+                            className="text-red-400 hover:text-red-600 text-sm font-medium transition-colors"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -412,6 +450,28 @@ export default function RepairsPage() {
             />
           </div>
         </>
+      )}
+      {/* Modal de confirmation suppression */}
+      {deleteId && (
+        <Modal title="Supprimer cette reparation ?" onClose={() => setDeleteId(null)}>
+          <p className="text-sm text-[#424245] mb-6">
+            Cette action est irreversible. Toutes les donnees associees (notes, historique, pieces) seront supprimees.
+          </p>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" size="sm" onClick={() => setDeleteId(null)}>
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="!bg-red-500 hover:!bg-red-600"
+            >
+              {deleting ? "Suppression..." : "Supprimer"}
+            </Button>
+          </div>
+        </Modal>
       )}
     </div>
   );
