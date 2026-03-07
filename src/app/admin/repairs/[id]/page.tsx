@@ -88,6 +88,8 @@ interface Repair {
   inboundTracking: string;
   outboundTracking: string;
   carrier: string;
+  trackingLink: string;
+  paymentLink: string;
   estimatedCost: number;
   finalCost: number;
   estimatedReturn: string | null;
@@ -300,6 +302,8 @@ export default function RepairDetailPage() {
       inboundTracking: repair.inboundTracking,
       outboundTracking: repair.outboundTracking,
       carrier: repair.carrier,
+      trackingLink: repair.trackingLink,
+      paymentLink: repair.paymentLink,
       estimatedCost: repair.estimatedCost,
       finalCost: repair.finalCost,
       technicianId: repair.technicianId,
@@ -550,6 +554,22 @@ export default function RepairDetailPage() {
               <div className="flex justify-between">
                 <span className="text-[#86868b]">Suivi sortant</span>
                 <span className="text-[#1d1d1f] font-mono text-xs">{repair.outboundTracking}</span>
+              </div>
+            )}
+            {repair.trackingLink && (
+              <div className="flex justify-between">
+                <span className="text-[#86868b]">Suivi Chronopost</span>
+                <a href={repair.trackingLink} target="_blank" rel="noopener noreferrer" className="text-[#0071e3] hover:text-[#0077ed] text-sm font-medium transition-colors">
+                  Suivre le colis &rarr;
+                </a>
+              </div>
+            )}
+            {repair.paymentLink && (
+              <div className="flex justify-between">
+                <span className="text-[#86868b]">Lien de paiement</span>
+                <a href={repair.paymentLink} target="_blank" rel="noopener noreferrer" className="text-[#0071e3] hover:text-[#0077ed] text-sm font-medium transition-colors">
+                  Payer &rarr;
+                </a>
               </div>
             )}
             <div className="flex justify-between">
@@ -991,6 +1011,18 @@ export default function RepairDetailPage() {
               label="Suivi sortant"
               value={String(editData.outboundTracking || "")}
               onChange={(e) => setEditData({ ...editData, outboundTracking: e.target.value })}
+            />
+            <Input
+              label="Lien suivi Chronopost"
+              placeholder="https://www.chronopost.fr/..."
+              value={String(editData.trackingLink || "")}
+              onChange={(e) => setEditData({ ...editData, trackingLink: e.target.value })}
+            />
+            <Input
+              label="Lien de paiement"
+              placeholder="https://..."
+              value={String(editData.paymentLink || "")}
+              onChange={(e) => setEditData({ ...editData, paymentLink: e.target.value })}
             />
             <Input
               label="Cout estime"

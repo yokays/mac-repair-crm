@@ -119,6 +119,8 @@ export async function PUT(
       "inboundTracking",
       "outboundTracking",
       "carrier",
+      "trackingLink",
+      "paymentLink",
       "estimatedCost",
       "finalCost",
       "technicianId",

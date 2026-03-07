@@ -51,6 +51,8 @@ model Repair {
   inboundTracking  String   @default("")
   outboundTracking String   @default("")
   carrier          String   @default("")
+  trackingLink     String   @default("")
+  paymentLink      String   @default("")
 
   // Financials
   estimatedCost    Float    @default(0)
