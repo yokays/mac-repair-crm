@@ -25,6 +25,8 @@ export async function GET(
         inboundTracking: true,
         outboundTracking: true,
         carrier: true,
+        trackingLink: true,
+        paymentLink: true,
         estimatedCost: true,
         estimatedReturn: true,
         createdAt: true,

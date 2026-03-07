@@ -43,6 +43,8 @@ interface Repair {
   inboundTracking: string;
   outboundTracking: string;
   carrier: string;
+  trackingLink: string;
+  paymentLink: string;
   estimatedCost: number;
   estimatedReturn: string | null;
   createdAt: string;
@@ -519,6 +521,36 @@ export default function TrackingPage() {
             </div>
           </div>
         )}
+
+      {/* ── Payment link ─────────────────────────────────────────── */}
+      {repair.paymentLink && (
+        <div className="mb-8 p-5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100 rounded-2xl">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+              <span className="text-lg">💳</span>
+            </div>
+            <div>
+              <h3 className="font-semibold text-[#1d1d1f] mb-1">
+                Paiement en ligne
+              </h3>
+              <p className="text-sm text-[#86868b] mb-3">
+                Cliquez sur le bouton ci-dessous pour proceder au paiement de votre reparation.
+              </p>
+              <a
+                href={repair.paymentLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white text-sm font-medium rounded-full hover:bg-green-700 transition-colors"
+              >
+                Payer maintenant
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Documents & Devis ────────────────────────────────────── */}
       {repair.attachments && repair.attachments.length > 0 && (
