@@ -1,0 +1,1022 @@
+"use client";
+
+import React, { useEffect, useState, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
+import { Badge } from "@/components/ui/Badge";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Modal } from "@/components/ui/Modal";
+import { PageLoader } from "@/components/ui/Loader";
+import { useToast } from "@/components/ui/Toast";
+import {
+  getStatuses,
+  getStatusLabel,
+  MAC_MODELS,
+  FAULT_TYPES,
+  PRIORITIES,
+  CARRIERS,
+} from "@/lib/constants";
+
+interface Technician {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+interface Note {
+  id: string;
+  content: string;
+  isInternal: boolean;
+  createdAt: string;
+  user?: { id: string; firstName: string; lastName: string };
+}
+
+interface StatusChange {
+  id: string;
+  fromStatus: string;
+  toStatus: string;
+  createdAt: string;
+  user?: { id: string; firstName: string; lastName: string };
+}
+
+interface RepairPart {
+  id: string;
+  quantity: number;
+  unitPrice: number;
+  createdAt: string;
+  part: {
+    id: string;
+    name: string;
+    sku: string;
+    category: string;
+  };
+}
+
+interface Attachment {
+  id: string;
+  fileName: string;
+  storedName: string;
+  mimeType: string;
+  size: number;
+  type: string;
+  createdAt: string;
+}
+
+interface Repair {
+  id: string;
+  token: string;
+  clientFirstName: string;
+  clientLastName: string;
+  clientEmail: string;
+  clientPhone: string;
+  clientAddress: string;
+  clientCity: string;
+  clientPostalCode: string;
+  macModel: string;
+  serialNumber: string;
+  faultType: string;
+  faultDescription: string;
+  repairType: string;
+  status: string;
+  priority: string;
+  inboundTracking: string;
+  outboundTracking: string;
+  carrier: string;
+  estimatedCost: number;
+  finalCost: number;
+  estimatedReturn: string | null;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  quoteValidated: boolean;
+  quoteValidatedAt: string | null;
+  technicianId: string | null;
+  technician: Technician | null;
+  notes: Note[];
+  statusChanges: StatusChange[];
+  partsUsed: RepairPart[];
+  attachments: Attachment[];
+}
+
+interface StockPart {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  quantity: number;
+  sellPrice: number;
+}
+
+export default function RepairDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const toast = useToast();
+  const repairId = params.id as string;
+
+  const [repair, setRepair] = useState<Repair | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [statusLoading, setStatusLoading] = useState(false);
+
+  // Notes
+  const [noteContent, setNoteContent] = useState("");
+  const [noteIsInternal, setNoteIsInternal] = useState(true);
+  const [addingNote, setAddingNote] = useState(false);
+
+  // Parts modal
+  const [showPartModal, setShowPartModal] = useState(false);
+  const [stockParts, setStockParts] = useState<StockPart[]>([]);
+  const [selectedPartId, setSelectedPartId] = useState("");
+  const [partQuantity, setPartQuantity] = useState("1");
+  const [addingPart, setAddingPart] = useState(false);
+
+  // Edit modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editData, setEditData] = useState<Record<string, string | number | null>>({});
+  const [saving, setSaving] = useState(false);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
+
+  // Attachments
+  const [uploading, setUploading] = useState(false);
+  const [attachmentType, setAttachmentType] = useState("Photo");
+
+  const fetchRepair = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/repairs/${repairId}`);
+      if (!res.ok) {
+        toast.error("Reparation introuvable");
+        router.push("/admin/repairs");
+        return;
+      }
+      const data = await res.json();
+      setRepair(data);
+    } catch {
+      toast.error("Erreur lors du chargement");
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repairId]);
+
+  useEffect(() => {
+    fetchRepair();
+  }, [fetchRepair]);
+
+  useEffect(() => {
+    fetch("/api/users")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => { if (Array.isArray(data)) setTechnicians(data); })
+      .catch(() => {});
+  }, []);
+
+  // Status advancement
+  const handleNextStatus = async () => {
+    if (!repair) return;
+    const statuses = getStatuses(repair.repairType);
+    const currentIndex = statuses.findIndex((s) => s.key === repair.status);
+    if (currentIndex === -1 || currentIndex >= statuses.length - 1) return;
+
+    const nextStatus = statuses[currentIndex + 1].key;
+    setStatusLoading(true);
+
+    try {
+      const res = await fetch(`/api/repairs/${repairId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Erreur");
+        return;
+      }
+
+      toast.success("Statut mis a jour");
+      fetchRepair();
+    } catch {
+      toast.error("Erreur de connexion");
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  // Add note
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noteContent.trim()) return;
+
+    setAddingNote(true);
+    try {
+      const res = await fetch(`/api/repairs/${repairId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: noteContent.trim(), isInternal: noteIsInternal }),
+      });
+
+      if (!res.ok) {
+        toast.error("Erreur lors de l'ajout de la note");
+        return;
+      }
+
+      toast.success("Note ajoutee");
+      setNoteContent("");
+      fetchRepair();
+    } catch {
+      toast.error("Erreur de connexion");
+    } finally {
+      setAddingNote(false);
+    }
+  };
+
+  // Add part
+  const handleOpenPartModal = async () => {
+    setShowPartModal(true);
+    try {
+      const res = await fetch("/api/stock");
+      const data = await res.json();
+      setStockParts(Array.isArray(data) ? data.filter((p: StockPart) => p.quantity > 0) : []);
+    } catch {
+      toast.error("Erreur lors du chargement des pieces");
+    }
+  };
+
+  const handleAddPart = async () => {
+    if (!selectedPartId || !partQuantity) return;
+    setAddingPart(true);
+
+    const selectedPart = stockParts.find((p) => p.id === selectedPartId);
+
+    try {
+      const res = await fetch(`/api/repairs/${repairId}/parts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partId: selectedPartId,
+          quantity: parseInt(partQuantity),
+          unitPrice: selectedPart?.sellPrice || 0,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Erreur");
+        return;
+      }
+
+      toast.success("Piece ajoutee");
+      setShowPartModal(false);
+      setSelectedPartId("");
+      setPartQuantity("1");
+      fetchRepair();
+    } catch {
+      toast.error("Erreur de connexion");
+    } finally {
+      setAddingPart(false);
+    }
+  };
+
+  // Edit repair
+  const handleOpenEditModal = () => {
+    if (!repair) return;
+    setEditData({
+      clientFirstName: repair.clientFirstName,
+      clientLastName: repair.clientLastName,
+      clientEmail: repair.clientEmail,
+      clientPhone: repair.clientPhone,
+      clientAddress: repair.clientAddress,
+      clientCity: repair.clientCity,
+      clientPostalCode: repair.clientPostalCode,
+      macModel: repair.macModel,
+      serialNumber: repair.serialNumber,
+      faultType: repair.faultType,
+      faultDescription: repair.faultDescription,
+      priority: repair.priority,
+      inboundTracking: repair.inboundTracking,
+      outboundTracking: repair.outboundTracking,
+      carrier: repair.carrier,
+      estimatedCost: repair.estimatedCost,
+      finalCost: repair.finalCost,
+      technicianId: repair.technicianId,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/repairs/${repairId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editData),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Erreur");
+        return;
+      }
+
+      toast.success("Reparation mise a jour");
+      setShowEditModal(false);
+      fetchRepair();
+    } catch {
+      toast.error("Erreur de connexion");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", attachmentType);
+
+      const res = await fetch(`/api/repairs/${repairId}/attachments`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Erreur lors de l'envoi");
+        return;
+      }
+
+      toast.success("Document ajoute");
+      fetchRepair();
+    } catch {
+      toast.error("Erreur de connexion");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    try {
+      const res = await fetch(`/api/repairs/${repairId}/attachments/${attachmentId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        toast.error("Erreur lors de la suppression");
+        return;
+      }
+      toast.success("Document supprime");
+      fetchRepair();
+    } catch {
+      toast.error("Erreur de connexion");
+    }
+  };
+
+  if (loading) return <PageLoader />;
+  if (!repair) return null;
+
+  const statuses = getStatuses(repair.repairType);
+  const currentStatusIndex = statuses.findIndex((s) => s.key === repair.status);
+  const isLastStatus = currentStatusIndex >= statuses.length - 1;
+
+  const totalPartsCost = repair.partsUsed.reduce(
+    (sum, p) => sum + p.unitPrice * p.quantity,
+    0
+  );
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+        <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+          <Link
+            href="/admin/repairs"
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0 mt-0.5"
+          >
+            <svg className="h-5 w-5 text-[#86868b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="text-lg sm:text-2xl font-semibold text-[#1d1d1f] tracking-tight">
+                {repair.clientFirstName} {repair.clientLastName}
+              </h1>
+              <StatusBadge status={repair.status} repairType={repair.repairType} />
+            </div>
+            <p className="text-xs sm:text-sm text-[#86868b] mt-1 truncate">
+              {repair.macModel} &middot; {repair.faultType} &middot;{" "}
+              <span className="font-mono">{repair.id.slice(0, 8)}</span>
+            </p>
+          </div>
+        </div>
+        <Button variant="secondary" size="sm" onClick={handleOpenEditModal} className="flex-shrink-0 self-start">
+          <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Modifier
+        </Button>
+      </div>
+
+      {/* Info grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        {/* Client details */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Client</CardTitle>
+          </CardHeader>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Nom</span>
+              <span className="text-[#1d1d1f] font-medium">{repair.clientFirstName} {repair.clientLastName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Email</span>
+              <a href={`mailto:${repair.clientEmail}`} className="text-[#0071e3]">{repair.clientEmail}</a>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Telephone</span>
+              <span className="text-[#1d1d1f]">{repair.clientPhone}</span>
+            </div>
+            {repair.clientAddress && (
+              <div className="flex justify-between">
+                <span className="text-[#86868b]">Adresse</span>
+                <span className="text-[#1d1d1f] text-right">
+                  {repair.clientAddress}{repair.clientCity ? `, ${repair.clientCity}` : ""}{repair.clientPostalCode ? ` ${repair.clientPostalCode}` : ""}
+                </span>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Mac details */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Mac</CardTitle>
+          </CardHeader>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Modele</span>
+              <span className="text-[#1d1d1f] font-medium">{repair.macModel}</span>
+            </div>
+            {repair.serialNumber && (
+              <div className="flex justify-between">
+                <span className="text-[#86868b]">N/S</span>
+                <span className="text-[#1d1d1f] font-mono">{repair.serialNumber}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Panne</span>
+              <span className="text-[#1d1d1f]">{repair.faultType}</span>
+            </div>
+            {repair.faultDescription && (
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-[#86868b] mb-1">Description</p>
+                <p className="text-[#1d1d1f]">{repair.faultDescription}</p>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Tracking info */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Suivi</CardTitle>
+          </CardHeader>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Type</span>
+              <Badge variant={repair.repairType === "POSTAL" ? "purple" : "info"}>
+                {repair.repairType === "POSTAL" ? "Postal" : "Atelier"}
+              </Badge>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Priorite</span>
+              <span className="text-[#1d1d1f]">
+                {PRIORITIES.find((p) => p.key === repair.priority)?.label || repair.priority}
+              </span>
+            </div>
+            {repair.technician && (
+              <div className="flex justify-between">
+                <span className="text-[#86868b]">Technicien</span>
+                <span className="text-[#1d1d1f]">{repair.technician.firstName} {repair.technician.lastName}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <span className="text-[#86868b]">Lien de suivi</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[#1d1d1f] font-mono text-xs">{repair.token.slice(0, 12)}...</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const url = `${window.location.origin}/suivi/${repair.token}`;
+                    const textarea = document.createElement("textarea");
+                    textarea.value = url;
+                    textarea.style.position = "fixed";
+                    textarea.style.opacity = "0";
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(textarea);
+                    toast.success("Lien de suivi copie !");
+                  }}
+                  className="text-[#0071e3] hover:text-[#0077ed] text-xs font-medium"
+                >
+                  Copier le lien
+                </button>
+              </div>
+            </div>
+            {repair.carrier && (
+              <div className="flex justify-between">
+                <span className="text-[#86868b]">Transporteur</span>
+                <span className="text-[#1d1d1f]">{repair.carrier}</span>
+              </div>
+            )}
+            {repair.inboundTracking && (
+              <div className="flex justify-between">
+                <span className="text-[#86868b]">Suivi entrant</span>
+                <span className="text-[#1d1d1f] font-mono text-xs">{repair.inboundTracking}</span>
+              </div>
+            )}
+            {repair.outboundTracking && (
+              <div className="flex justify-between">
+                <span className="text-[#86868b]">Suivi sortant</span>
+                <span className="text-[#1d1d1f] font-mono text-xs">{repair.outboundTracking}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Cree le</span>
+              <span className="text-[#1d1d1f]">{new Date(repair.createdAt).toLocaleDateString("fr-FR")}</span>
+            </div>
+            {repair.estimatedReturn && (
+              <div className="flex justify-between">
+                <span className="text-[#86868b]">Retour estime</span>
+                <span className="text-[#1d1d1f]">{new Date(repair.estimatedReturn).toLocaleDateString("fr-FR")}</span>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Financial info */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Financier</CardTitle>
+          </CardHeader>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Cout estime</span>
+              <span className="text-[#1d1d1f] font-medium">
+                {repair.estimatedCost.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Cout final</span>
+              <span className="text-[#1d1d1f] font-medium">
+                {repair.finalCost.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#86868b]">Cout pieces</span>
+              <span className="text-[#1d1d1f] font-medium">
+                {totalPartsCost.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+              <span className="text-[#86868b]">Devis</span>
+              {repair.quoteValidated ? (
+                <Badge variant="success">
+                  Valide le {new Date(repair.quoteValidatedAt!).toLocaleDateString("fr-FR")}
+                </Badge>
+              ) : (
+                <Badge variant="neutral">Non valide</Badge>
+              )}
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Status timeline */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Progression du statut</CardTitle>
+          {!isLastStatus && (
+            <Button
+              variant="primary"
+              size="sm"
+              loading={statusLoading}
+              onClick={handleNextStatus}
+            >
+              Passer au statut suivant
+            </Button>
+          )}
+        </CardHeader>
+        <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          {statuses.map((s, idx) => {
+            const isPast = idx < currentStatusIndex;
+            const isCurrent = idx === currentStatusIndex;
+            return (
+              <React.Fragment key={s.key}>
+                {idx > 0 && (
+                  <div className={`h-0.5 w-8 flex-shrink-0 rounded ${
+                    isPast || isCurrent ? "bg-[#0071e3]" : "bg-gray-200"
+                  }`} />
+                )}
+                <div
+                  className={`
+                    flex items-center gap-2 px-3 py-2 rounded-lg flex-shrink-0 text-sm
+                    ${isCurrent ? "bg-[#0071e3] text-white font-medium" : ""}
+                    ${isPast ? "bg-green-50 text-green-700" : ""}
+                    ${!isPast && !isCurrent ? "bg-gray-50 text-[#86868b]" : ""}
+                  `}
+                >
+                  {isPast && (
+                    <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                  <span className="text-base">{s.icon}</span>
+                  <span className="whitespace-nowrap">{s.label}</span>
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Notes section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Notes ({repair.notes.length})</CardTitle>
+          </CardHeader>
+
+          {/* Add note form */}
+          <form onSubmit={handleAddNote} className="mb-4 pb-4 border-b border-gray-100">
+            <Textarea
+              value={noteContent}
+              onChange={(e) => setNoteContent(e.target.value)}
+              rows={2}
+              placeholder="Ajouter une note..."
+            />
+            <div className="flex items-center justify-between mt-3">
+              <label className="flex items-center gap-2 text-sm text-[#424245]">
+                <input
+                  type="checkbox"
+                  checked={noteIsInternal}
+                  onChange={(e) => setNoteIsInternal(e.target.checked)}
+                  className="rounded border-gray-300 text-[#0071e3] focus:ring-[#0071e3]"
+                />
+                Note interne
+              </label>
+              <Button type="submit" variant="primary" size="sm" loading={addingNote}>
+                Ajouter
+              </Button>
+            </div>
+          </form>
+
+          {/* Notes list */}
+          {repair.notes.length === 0 ? (
+            <p className="text-sm text-[#86868b] text-center py-4">
+              Aucune note pour le moment.
+            </p>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {repair.notes.map((note) => (
+                <div
+                  key={note.id}
+                  className={`p-3 rounded-lg text-sm ${
+                    note.isInternal ? "bg-amber-50 border border-amber-100" : "bg-gray-50 border border-gray-100"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-[#1d1d1f]">
+                      {note.user ? `${note.user.firstName} ${note.user.lastName}` : "Systeme"}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {note.isInternal && (
+                        <Badge variant="warning">Interne</Badge>
+                      )}
+                      <span className="text-xs text-[#86868b]">
+                        {new Date(note.createdAt).toLocaleString("fr-FR")}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[#424245]">{note.content}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Parts section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Pieces utilisees ({repair.partsUsed.length})</CardTitle>
+            <Button variant="secondary" size="sm" onClick={handleOpenPartModal}>
+              <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Ajouter
+            </Button>
+          </CardHeader>
+
+          {repair.partsUsed.length === 0 ? (
+            <p className="text-sm text-[#86868b] text-center py-4">
+              Aucune piece ajoutee.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {repair.partsUsed.map((rp) => (
+                <div
+                  key={rp.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-[#1d1d1f]">{rp.part.name}</p>
+                    <p className="text-xs text-[#86868b]">{rp.part.sku} &middot; {rp.part.category}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-[#1d1d1f]">
+                      {(rp.unitPrice * rp.quantity).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                    </p>
+                    <p className="text-xs text-[#86868b]">
+                      {rp.quantity} x {rp.unitPrice.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              <div className="pt-2 mt-2 border-t border-gray-100 flex justify-between text-sm">
+                <span className="font-medium text-[#86868b]">Total pieces</span>
+                <span className="font-semibold text-[#1d1d1f]">
+                  {totalPartsCost.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                </span>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Documents */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Documents ({repair.attachments?.length || 0})</CardTitle>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <select
+              value={attachmentType}
+              onChange={(e) => setAttachmentType(e.target.value)}
+              className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-[#1d1d1f]"
+            >
+              <option value="Devis">Devis</option>
+              <option value="Facture">Facture</option>
+              <option value="Photo">Photo</option>
+              <option value="Autre">Autre</option>
+            </select>
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                onChange={handleUpload}
+                className="hidden"
+                disabled={uploading}
+              />
+              <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-[#0071e3] text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-[#0077ed] transition-colors">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                {uploading ? "..." : "Uploader"}
+              </span>
+            </label>
+          </div>
+        </CardHeader>
+
+        {!repair.attachments || repair.attachments.length === 0 ? (
+          <p className="text-sm text-[#86868b] text-center py-4">
+            Aucun document ajoute.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {repair.attachments.map((att) => (
+              <div
+                key={att.id}
+                className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">
+                    {att.mimeType === "application/pdf" ? "📄" : "🖼️"}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-[#1d1d1f]">{att.fileName}</p>
+                    <p className="text-xs text-[#86868b]">
+                      <Badge variant={att.type === "Devis" ? "info" : att.type === "Facture" ? "purple" : "neutral"}>{att.type}</Badge>
+                      {" "}&middot; {(att.size / 1024).toFixed(0)} Ko &middot; {new Date(att.createdAt).toLocaleDateString("fr-FR")}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`/api/repairs/${repair.id}/attachments/${att.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#0071e3] hover:text-[#0077ed] text-sm font-medium"
+                  >
+                    Ouvrir
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteAttachment(att.id)}
+                    className="text-red-500 hover:text-red-700 text-sm font-medium"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Status change history */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Historique des changements de statut</CardTitle>
+        </CardHeader>
+        {repair.statusChanges.length === 0 ? (
+          <p className="text-sm text-[#86868b] text-center py-4">Aucun historique.</p>
+        ) : (
+          <div className="space-y-2">
+            {repair.statusChanges.map((sc) => (
+              <div key={sc.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-gray-50 text-sm gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {sc.fromStatus && (
+                    <>
+                      <span className="text-[#86868b]">
+                        {getStatusLabel(sc.fromStatus, repair.repairType)}
+                      </span>
+                      <svg className="h-4 w-4 text-[#86868b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </>
+                  )}
+                  <span className="font-medium text-[#1d1d1f]">
+                    {getStatusLabel(sc.toStatus, repair.repairType)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-[#86868b] text-xs sm:text-sm">
+                  <span>{sc.user ? `${sc.user.firstName} ${sc.user.lastName}` : "Systeme"}</span>
+                  <span>{new Date(sc.createdAt).toLocaleString("fr-FR")}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Part modal */}
+      <Modal isOpen={showPartModal} onClose={() => setShowPartModal(false)} title="Ajouter une piece">
+        <div className="space-y-4">
+          <Select
+            label="Piece"
+            options={stockParts.map((p) => ({
+              value: p.id,
+              label: `${p.name} (${p.sku}) - ${p.quantity} dispo - ${p.sellPrice.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`,
+            }))}
+            value={selectedPartId}
+            onChange={(e) => setSelectedPartId(e.target.value)}
+            placeholder="Selectionnez une piece"
+          />
+          <Input
+            label="Quantite"
+            type="number"
+            min="1"
+            value={partQuantity}
+            onChange={(e) => setPartQuantity(e.target.value)}
+          />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowPartModal(false)}>
+              Annuler
+            </Button>
+            <Button variant="primary" size="sm" loading={addingPart} onClick={handleAddPart}>
+              Ajouter
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit modal */}
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Modifier la reparation" size="lg">
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Prenom"
+              value={String(editData.clientFirstName || "")}
+              onChange={(e) => setEditData({ ...editData, clientFirstName: e.target.value })}
+            />
+            <Input
+              label="Nom"
+              value={String(editData.clientLastName || "")}
+              onChange={(e) => setEditData({ ...editData, clientLastName: e.target.value })}
+            />
+            <Input
+              label="Email"
+              value={String(editData.clientEmail || "")}
+              onChange={(e) => setEditData({ ...editData, clientEmail: e.target.value })}
+            />
+            <Input
+              label="Telephone"
+              value={String(editData.clientPhone || "")}
+              onChange={(e) => setEditData({ ...editData, clientPhone: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Modele"
+              options={MAC_MODELS.map((m) => ({ value: m, label: m }))}
+              value={String(editData.macModel || "")}
+              onChange={(e) => setEditData({ ...editData, macModel: e.target.value })}
+            />
+            <Input
+              label="N/S"
+              value={String(editData.serialNumber || "")}
+              onChange={(e) => setEditData({ ...editData, serialNumber: e.target.value })}
+            />
+            <Select
+              label="Type de panne"
+              options={FAULT_TYPES.map((f) => ({ value: f, label: f }))}
+              value={String(editData.faultType || "")}
+              onChange={(e) => setEditData({ ...editData, faultType: e.target.value })}
+            />
+            <Select
+              label="Priorite"
+              options={PRIORITIES.map((p) => ({ value: p.key, label: p.label }))}
+              value={String(editData.priority || "")}
+              onChange={(e) => setEditData({ ...editData, priority: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Technicien"
+              options={[
+                { value: "", label: "Non assigne" },
+                ...technicians.map((t) => ({
+                  value: t.id,
+                  label: `${t.firstName} ${t.lastName}`,
+                })),
+              ]}
+              value={String(editData.technicianId || "")}
+              onChange={(e) => setEditData({ ...editData, technicianId: e.target.value || null })}
+            />
+            <Select
+              label="Transporteur"
+              options={[
+                { value: "", label: "Aucun" },
+                ...CARRIERS.map((c) => ({ value: c, label: c })),
+              ]}
+              value={String(editData.carrier || "")}
+              onChange={(e) => setEditData({ ...editData, carrier: e.target.value })}
+            />
+            <Input
+              label="Suivi entrant"
+              value={String(editData.inboundTracking || "")}
+              onChange={(e) => setEditData({ ...editData, inboundTracking: e.target.value })}
+            />
+            <Input
+              label="Suivi sortant"
+              value={String(editData.outboundTracking || "")}
+              onChange={(e) => setEditData({ ...editData, outboundTracking: e.target.value })}
+            />
+            <Input
+              label="Cout estime"
+              type="number"
+              step="0.01"
+              value={String(editData.estimatedCost || "")}
+              onChange={(e) => setEditData({ ...editData, estimatedCost: parseFloat(e.target.value) || 0 })}
+            />
+            <Input
+              label="Cout final"
+              type="number"
+              step="0.01"
+              value={String(editData.finalCost || "")}
+              onChange={(e) => setEditData({ ...editData, finalCost: parseFloat(e.target.value) || 0 })}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-gray-100">
+          <Button variant="ghost" size="sm" onClick={() => setShowEditModal(false)}>
+            Annuler
+          </Button>
+          <Button variant="primary" size="sm" loading={saving} onClick={handleSaveEdit}>
+            Enregistrer
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  );
+}

@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      String   @default("TECHNICIAN") // SUPER_ADMIN, TECHNICIAN
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  repairs       Repair[]       @relation("AssignedTechnician")
+  statusChanges StatusChange[]
+  repairNotes   RepairNote[]
+}
+
+model Repair {
+  id               String   @id @default(uuid())
+  token            String   @unique @default(uuid())
+
+  // Client info
+  clientFirstName  String
+  clientLastName   String
+  clientEmail      String
+  clientPhone      String
+  clientAddress    String   @default("")
+  clientCity       String   @default("")
+  clientPostalCode String   @default("")
+
+  // Mac info
+  macModel         String
+  serialNumber     String   @default("")
+  faultType        String
+  faultDescription String   @default("")
+
+  // Repair info
+  repairType       String   // POSTAL or LOCAL
+  status           String   @default("PENDING")
+  priority         String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+
+  // Tracking
+  inboundTracking  String   @default("")
+  outboundTracking String   @default("")
+  carrier          String   @default("")
+
+  // Financials
+  estimatedCost    Float    @default(0)
+  finalCost        Float    @default(0)
+
+  // Dates
+  estimatedReturn  DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  closedAt         DateTime?
+
+  // Quote validation
+  quoteValidated   Boolean  @default(false)
+  quoteValidatedAt DateTime?
+
+  // Relations
+  technicianId     String?
+  technician       User?          @relation("AssignedTechnician", fields: [technicianId], references: [id])
+  statusChanges    StatusChange[]
+  notes            RepairNote[]
+  partsUsed        RepairPart[]
+  attachments      RepairAttachment[]
+}
+
+model StatusChange {
+  id        String   @id @default(uuid())
+  repairId  String
+  repair    Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  fromStatus String
+  toStatus   String
+  createdAt DateTime @default(now())
+}
+
+model RepairNote {
+  id         String   @id @default(uuid())
+  repairId   String
+  repair     Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  content    String
+  isInternal Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model Part {
+  id            String       @id @default(uuid())
+  name          String
+  sku           String       @unique
+  category      String
+  compatibility String       @default("") // comma-separated Mac models
+  quantity      Int          @default(0)
+  alertThreshold Int         @default(5)
+  purchasePrice Float        @default(0)
+  sellPrice     Float        @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  movements     StockMovement[]
+  repairParts   RepairPart[]
+}
+
+model StockMovement {
+  id        String   @id @default(uuid())
+  partId    String
+  part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  type      String   // IN or OUT
+  quantity  Int
+  reason    String   @default("")
+  repairId  String?
+  createdAt DateTime @default(now())
+}
+
+model RepairPart {
+  id        String   @id @default(uuid())
+  repairId  String
+  repair    Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  partId    String
+  part      Part     @relation(fields: [partId], references: [id])
+  quantity  Int      @default(1)
+  unitPrice Float    @default(0)
+  createdAt DateTime @default(now())
+}
+
+model RepairAttachment {
+  id         String   @id @default(uuid())
+  repairId   String
+  repair     Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  fileName   String
+  storedName String   @unique
+  mimeType   String
+  size       Int
+  type       String   // Devis, Facture, Photo, Autre
+  createdAt  DateTime @default(now())
+}
