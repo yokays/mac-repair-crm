@@ -176,21 +176,16 @@ export default function RepairDetailPage() {
       .catch(() => {});
   }, []);
 
-  // Status advancement
-  const handleNextStatus = async () => {
-    if (!repair) return;
-    const statuses = getStatuses(repair.repairType);
-    const currentIndex = statuses.findIndex((s) => s.key === repair.status);
-    if (currentIndex === -1 || currentIndex >= statuses.length - 1) return;
-
-    const nextStatus = statuses[currentIndex + 1].key;
+  // Status change (direct jump to any status)
+  const handleSetStatus = async (newStatus: string) => {
+    if (!repair || repair.status === newStatus) return;
     setStatusLoading(true);
 
     try {
       const res = await fetch(`/api/repairs/${repairId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({ status: newStatus }),
       });
 
       if (!res.ok) {
@@ -628,14 +623,17 @@ export default function RepairDetailPage() {
         <CardHeader>
           <CardTitle>Progression du statut</CardTitle>
           {!isLastStatus && (
-            <Button
-              variant="primary"
-              size="sm"
-              loading={statusLoading}
-              onClick={handleNextStatus}
+            <select
+              disabled={statusLoading}
+              value=""
+              onChange={(e) => { if (e.target.value) handleSetStatus(e.target.value); }}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#0071e3] disabled:opacity-50"
             >
-              Passer au statut suivant
-            </Button>
+              <option value="" disabled>Changer le statut...</option>
+              {statuses.filter((_, idx) => idx > currentStatusIndex).map((s) => (
+                <option key={s.key} value={s.key}>{s.icon} {s.label}</option>
+              ))}
+            </select>
           )}
         </CardHeader>
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
@@ -650,11 +648,12 @@ export default function RepairDetailPage() {
                   }`} />
                 )}
                 <div
+                  onClick={() => { if (!isCurrent && !statusLoading) handleSetStatus(s.key); }}
                   className={`
-                    flex items-center gap-2 px-3 py-2 rounded-lg flex-shrink-0 text-sm
+                    flex items-center gap-2 px-3 py-2 rounded-lg flex-shrink-0 text-sm transition-all
                     ${isCurrent ? "bg-[#0071e3] text-white font-medium" : ""}
-                    ${isPast ? "bg-green-50 text-green-700" : ""}
-                    ${!isPast && !isCurrent ? "bg-gray-50 text-[#86868b]" : ""}
+                    ${isPast ? "bg-green-50 text-green-700 cursor-pointer hover:bg-green-100" : ""}
+                    ${!isPast && !isCurrent ? "bg-gray-50 text-[#86868b] cursor-pointer hover:bg-gray-100" : ""}
                   `}
                 >
                   {isPast && (
