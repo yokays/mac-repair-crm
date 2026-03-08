@@ -13,7 +13,7 @@ import { PageLoader } from "@/components/ui/Loader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { FAULT_TYPES, POSTAL_STATUSES, LOCAL_STATUSES } from "@/lib/constants";
+import { FAULT_TYPES, REPAIR_STATUSES } from "@/lib/constants";
 
 interface Repair {
   id: string;
@@ -41,11 +41,7 @@ interface User {
   lastName: string;
 }
 
-const allStatuses = [
-  ...POSTAL_STATUSES.map((s) => ({ value: s.key, label: s.label })),
-].filter(
-  (s, i, arr) => arr.findIndex((x) => x.value === s.value) === i
-);
+const allStatuses = REPAIR_STATUSES.map((s) => ({ value: s.key, label: s.label }));
 
 const repairTypeOptions = [
   { value: "", label: "Tous les types" },

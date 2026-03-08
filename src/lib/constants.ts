@@ -1,15 +1,5 @@
-// Statuts pour envoi postal
-export const POSTAL_STATUSES = [
-  { key: "PENDING", label: "Colis en attente de réception", icon: "✉️" },
-  { key: "RECEIVED", label: "Mac reçu — diagnostic en cours", icon: "🔍" },
-  { key: "REPAIRING", label: "Réparation en cours", icon: "🔧" },
-  { key: "DONE", label: "Réparation terminée — en attente d'expédition", icon: "✅" },
-  { key: "SHIPPED", label: "Mac réexpédié", icon: "📬" },
-  { key: "CLOSED", label: "Dossier clôturé", icon: "🏁" },
-] as const;
-
-// Statuts pour atelier local
-export const LOCAL_STATUSES = [
+// Statuts de réparation (identiques pour tous les types)
+export const REPAIR_STATUSES = [
   { key: "PENDING", label: "Mac déposé en atelier", icon: "🏪" },
   { key: "RECEIVED", label: "Diagnostic en cours", icon: "🔍" },
   { key: "REPAIRING", label: "Réparation en cours", icon: "🔧" },
@@ -17,8 +7,8 @@ export const LOCAL_STATUSES = [
   { key: "CLOSED", label: "Mac récupéré — dossier clôturé", icon: "🏁" },
 ] as const;
 
-export function getStatuses(repairType: string) {
-  return repairType === "POSTAL" ? POSTAL_STATUSES : LOCAL_STATUSES;
+export function getStatuses(_repairType?: string) {
+  return REPAIR_STATUSES;
 }
 
 export function getStatusLabel(status: string, repairType: string): string {
@@ -36,7 +26,6 @@ export const STATUS_COLORS: Record<string, string> = {
   RECEIVED: "bg-blue-100 text-blue-800 border-blue-300",
   REPAIRING: "bg-orange-100 text-orange-800 border-orange-300",
   DONE: "bg-green-100 text-green-800 border-green-300",
-  SHIPPED: "bg-purple-100 text-purple-800 border-purple-300",
   CLOSED: "bg-gray-100 text-gray-800 border-gray-300",
 };
 
