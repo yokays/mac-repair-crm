@@ -141,6 +141,23 @@ export default function RepairsPage() {
     }
   };
 
+  const handleExportFull = async () => {
+    try {
+      const res = await fetch("/api/export/full");
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mac-place-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("Backup complet telecharge");
+    } catch {
+      toast.error("Erreur lors du backup");
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteId) return;
     setDeleting(true);
@@ -191,11 +208,19 @@ export default function RepairsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
+          <Button variant="secondary" size="sm" onClick={handleExportFull}>
+            <svg className="h-4 w-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V9l-5-5H7C5 4 4 5 4 7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4v4h4M8 12h8M8 16h8" />
+            </svg>
+            <span className="hidden sm:inline">Backup complet</span>
+            <span className="sm:hidden">Backup</span>
+          </Button>
           <Button variant="secondary" size="sm" onClick={handleExportCSV}>
             <svg className="h-4 w-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <span className="hidden sm:inline">Exporter CSV</span>
+            <span className="hidden sm:inline">CSV</span>
             <span className="sm:hidden">CSV</span>
           </Button>
           <Link href="/admin/repairs/new">
