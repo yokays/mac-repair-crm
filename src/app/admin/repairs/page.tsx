@@ -59,6 +59,7 @@ export default function RepairsPage() {
   const toast = useToast();
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -89,7 +90,7 @@ export default function RepairsPage() {
   }, []);
 
   const fetchRepairs = useCallback(async () => {
-    setLoading(true);
+    if (initialLoad) setLoading(true);
     const params = new URLSearchParams();
     params.set("page", String(page));
     params.set("limit", "20");
@@ -111,6 +112,7 @@ export default function RepairsPage() {
       toast.error("Erreur lors du chargement des reparations");
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, search, statusFilter, repairTypeFilter, technicianFilter, faultTypeFilter, dateFrom, dateTo]);
